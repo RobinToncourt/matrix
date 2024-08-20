@@ -131,6 +131,17 @@ impl<T> Matrix<T> {
         Some(column)
     }
 
+    fn get_diagonal(&self) -> Vec<&T> {
+        let min = std::cmp::min(self.rows, self.columns);
+        let mut diagonal: Vec<&T> = Vec::new();
+
+        for i in 0..min {
+            diagonal.push(&self.grid[i][i]);
+        }
+
+        diagonal
+    }
+
     fn is_squared(&self) -> bool {
         self.rows == self.columns
     }
@@ -363,19 +374,17 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Num + Add<Output = T> + Clone,
+    T: std::iter::Sum<T> + Clone,
 {
     fn trace(&self) -> Result<T, MatrixError> {
         if !self.is_squared() {
             return Err(MatrixError::NotSquaredMatrixError);
         }
 
-        let mut sum = T::zero();
-
-        for i in 0..self.rows {
-            sum = sum + self.grid[i][i].clone();
-        }
-
+        let sum = self.get_diagonal()
+            .into_iter()
+            .map(|e| e.clone())
+            .sum::<T>();
         Ok(sum)
     }
 }
@@ -685,6 +694,19 @@ mod test_matrix {
 
         assert_eq!(matrix.get_column(1).unwrap(), vec![&2, &5, &8]);
         assert_eq!(matrix.get_column(3), None);
+    }
+
+    #[test]
+    fn test_get_diagonal() {
+        let a = Matrix::new(vec![vec![1, 2, 3], vec![4, 5, 6]]).unwrap();
+        let b = Matrix::new(vec![vec![1, 2], vec![3, 4], vec![5, 6]]).unwrap();
+        let c = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]
+        ).unwrap();
+
+        assert_eq!(a.get_diagonal(), vec![&1, &5]);
+        assert_eq!(b.get_diagonal(), vec![&1, &4]);
+        assert_eq!(c.get_diagonal(), vec![&1, &5, &9]);
     }
 
     #[test]
