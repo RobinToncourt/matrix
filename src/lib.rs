@@ -11,22 +11,24 @@ use std::fmt::{Display, Debug, Formatter, Error as FmtError};
 use num::Num;
 
 #[derive(Debug, PartialEq, Clone)]
-struct Matrix<T> {
+pub struct Matrix<T> {
     rows: usize,
     columns: usize,
     grid: Vec<Vec<T>>,
 }
 
 #[derive(Debug, PartialEq)]
-enum MatrixError {
+pub enum MatrixError {
     EmptyMatrixError,
     RowsNotOfSameSizeError,
     NotTheSameSizeError,
     IncompatibleSizeMulError,
     MatrixCantBeZeroSizedError,
     NotSquaredMatrixError,
-    MatrixTooSmall,
-    InvalidVecSize,
+    MatrixTooSmallError,
+    InvalidVecSizeError,
+    NoDecompositionError,
+    DeterminantIsZeroError,
 }
 
 impl Display for MatrixError {
@@ -44,10 +46,14 @@ impl Display for MatrixError {
                 write!(f, "Matrix can't be of zero size."),
             Self::NotSquaredMatrixError =>
                 write!(f, "Matrix is not squared."),
-            Self::MatrixTooSmall =>
+            Self::MatrixTooSmallError =>
                 write!(f, "Matrix is too small."),
-            Self::InvalidVecSize =>
+            Self::InvalidVecSizeError =>
                 write!(f, "Vec of invalid size."),
+            Self::NoDecompositionError =>
+                write!(f, "No decomposition lu."),
+            Self::DeterminantIsZeroError =>
+                write!(f, "Determinant is zero."),
         }
     }
 }
@@ -55,7 +61,7 @@ impl Display for MatrixError {
 impl Error for MatrixError {}
 
 impl<T> Matrix<T> {
-    fn new(grid: Vec<Vec<T>>) -> Result<Self, MatrixError> {
+    pub fn new(grid: Vec<Vec<T>>) -> Result<Self, MatrixError> {
         if grid.len() == 0 {
             return Err(MatrixError::EmptyMatrixError);
         }
@@ -74,13 +80,13 @@ impl<T> Matrix<T> {
         })
     }
 
-    fn from_vec(
+    pub fn from_vec(
         v: Vec<T>, rows: usize
     ) -> Result<Self, MatrixError> {
         let len: f32 = v.len() as f32;
         let x_f32: f32 = rows as f32;
         if (len / x_f32) % 1. != 0. {
-            return Err(MatrixError::InvalidVecSize);
+            return Err(MatrixError::InvalidVecSizeError);
         }
 
         let mut result: Vec<Vec<T>> = Vec::new();
@@ -100,15 +106,15 @@ impl<T> Matrix<T> {
         Ok(Matrix::new(result).unwrap())
     }
 
-    fn get_nb_rows(&self) -> usize {
+    pub fn get_nb_rows(&self) -> usize {
         self.rows
     }
 
-    fn get_nb_columns(&self) -> usize {
+    pub fn get_nb_columns(&self) -> usize {
         self.columns
     }
 
-    fn get_row(&self, index: usize) -> Option<Vec<&T>> {
+    pub fn get_row(&self, index: usize) -> Option<Vec<&T>> {
         if index >= self.rows {
             None
         }
@@ -117,7 +123,7 @@ impl<T> Matrix<T> {
         }
     }
 
-    fn get_column(&self, index: usize) -> Option<Vec<&T>> {
+    pub fn get_column(&self, index: usize) -> Option<Vec<&T>> {
         if index >= self.columns {
             return None;
         }
@@ -131,7 +137,7 @@ impl<T> Matrix<T> {
         Some(column)
     }
 
-    fn get_diagonal(&self) -> Vec<&T> {
+    pub fn get_diagonal(&self) -> Vec<&T> {
         let min = std::cmp::min(self.rows, self.columns);
         let mut diagonal: Vec<&T> = Vec::new();
 
@@ -142,7 +148,7 @@ impl<T> Matrix<T> {
         diagonal
     }
 
-    fn is_squared(&self) -> bool {
+    pub fn is_squared(&self) -> bool {
         self.rows == self.columns
     }
 }
@@ -156,12 +162,12 @@ impl<T> IntoIterator for Matrix<T> {
     }
 }
 
-struct MatrixIterator<T> {
+pub struct MatrixIterator<T> {
     matrix_values: Vec<T>,
 }
 
 impl<T> MatrixIterator<T> {
-    fn new(matrix: Matrix<T>) -> Self {
+    pub fn new(matrix: Matrix<T>) -> Self {
         let matrix_values = matrix.grid.into_iter().flatten().collect();
 
         Self {
@@ -216,8 +222,17 @@ impl<T> Matrix<T>
 where
     T: Num + Neg<Output = T> + Clone,
 {
-    fn determinant(&self) -> Result<T, MatrixError> {
+    pub fn determinant(&self) -> Result<T, MatrixError> {
         matrix_determinant(self)
+    }
+
+    pub fn is_invertible(&self) -> bool {
+        if self.rows != self.columns {
+            false
+        }
+        else {
+            self.determinant().unwrap() != T::zero()
+        }
     }
 }
 
@@ -256,11 +271,11 @@ impl<T> Matrix<T>
 where
     T: Clone,
 {
-    fn minor(
+    pub fn minor(
         &self, x: usize, y: usize
     ) -> Result<Self, MatrixError> {
         if self.rows == 1 {
-            return Err(MatrixError::MatrixTooSmall);
+            return Err(MatrixError::MatrixTooSmallError);
         }
 
         if !self.is_squared() {
@@ -294,7 +309,7 @@ where
         })
     }
 
-    fn transpose(&self) -> Self {
+    pub fn transpose(&self) -> Self {
         let rows = self.columns;
         let columns = self.rows;
 
@@ -314,13 +329,17 @@ where
             grid,
         }
     }
+
+    pub fn as_vec(&self) -> Vec<Vec<T>> {
+        self.grid.clone()
+    }
 }
 
 impl<T> Matrix<T>
 where
     T: Num,
 {
-    fn identity(size: usize) -> Result<Self, MatrixError> {
+    pub fn identity(size: usize) -> Result<Self, MatrixError> {
         if size == 0 {
             return Err(MatrixError::MatrixCantBeZeroSizedError);
         }
@@ -351,7 +370,7 @@ where
         })
     }
 
-    fn is_diagonal(&self) -> bool {
+    pub fn is_diagonal(&self) -> bool {
         if !self.is_squared() {
             return false;
         }
@@ -376,7 +395,7 @@ impl<T> Matrix<T>
 where
     T: std::iter::Sum<T> + Clone,
 {
-    fn trace(&self) -> Result<T, MatrixError> {
+    pub fn trace(&self) -> Result<T, MatrixError> {
         if !self.is_squared() {
             return Err(MatrixError::NotSquaredMatrixError);
         }
@@ -393,7 +412,7 @@ impl<T> Matrix<T>
 where
     T: Add<Output = T> + Clone,
 {
-    fn add(&self, other: &Self) -> Result<Self, MatrixError> {
+    pub fn add(&self, other: &Self) -> Result<Self, MatrixError> {
         if self.rows != other.rows ||
             self.columns != other.columns {
             return Err(MatrixError::NotTheSameSizeError);
@@ -425,7 +444,7 @@ impl<T> Matrix<T>
 where
     T: Mul<Output = T> + Clone,
 {
-    fn mul_scalaire(
+    pub fn mul_scalaire(
         &self, scalaire: T,
     ) -> Self {
         let mut new_grid: Vec<Vec<T>> = Vec::new();
@@ -454,11 +473,10 @@ impl<T> Matrix<T>
 where
     T: Add<Output = T> + Mul<Output = T> + std::iter::Sum + Clone,
 {
-    fn mul(
+    pub fn mul(
         &self, other: &Self,
     ) -> Result<Self, MatrixError> {
-        if self.rows != other.columns ||
-            self.columns != other.rows {
+        if self.columns != other.rows {
             return Err(MatrixError::IncompatibleSizeMulError);
         }
 
@@ -467,10 +485,10 @@ where
 
         let mut new_grid: Vec<Vec<T>> = Vec::new();
 
-        for x in 0..columns {
+        for x in 0..rows {
             let mut new_column: Vec<T> = Vec::new();
 
-            for y in 0..rows {
+            for y in 0..columns {
                 let self_row = self.get_row(x).unwrap();
                 let other_column = other.get_column(y).unwrap();
 
@@ -508,10 +526,16 @@ impl<T> Matrix<T>
 where
     T: Num + Neg<Output = T> + Clone + Debug,
 {
-    fn inverse(&self) -> Result<Self, MatrixError> {
+    pub fn inverse(&self) -> Result<Self, MatrixError> {
+        if !self.is_squared() {
+            return Err(MatrixError::NotSquaredMatrixError);
+        }
+        let determinant = self.determinant()?;
+        if determinant == T::zero() {
+            return Err(MatrixError::DeterminantIsZeroError);
+        }
         let comatrice = self.comatrice()?;
         let transpose = comatrice.transpose();
-        let determinant = self.determinant().unwrap();
         let inverse_determinant = T::one() / determinant;
         Ok(transpose.mul_scalaire(inverse_determinant))
     }
@@ -521,7 +545,7 @@ impl<T> Matrix<T>
 where
     T: Num + Neg<Output = T> + Clone,
 {
-    fn comatrice(&self) -> Result<Self, MatrixError> {
+    pub fn comatrice(&self) -> Result<Self, MatrixError> {
         if !self.is_squared() {
             return Err(MatrixError::NotSquaredMatrixError);
         }
@@ -563,6 +587,25 @@ where
     }
 }
 
+impl<T> Matrix<T> {
+    fn lu_decomposition(
+        &self
+    ) -> Result<(Matrix<T>, Matrix<T>), MatrixError> {
+        if !self.is_squared() {
+            return Err(MatrixError::NotSquaredMatrixError);
+        }
+
+        let mut l: Vec<Vec<T>> = Vec::new();
+        let mut u: Vec<Vec<T>> = Vec::new();
+
+        todo!();
+
+        let lower = Matrix::new(l).unwrap();
+        let upper = Matrix::new(u).unwrap();
+        Ok((lower, upper))
+    }
+}
+
 impl<T> Index<usize> for Matrix<T> {
     type Output = Vec<T>;
 
@@ -575,7 +618,7 @@ impl<T> Matrix<T>
 where
     T: Debug,
 {
-    fn print(&self) {
+    pub fn print(&self) {
         for i in 0..self.rows {
             println!("{:?}", self.grid[i]);
         }
@@ -620,7 +663,9 @@ mod test_matrix {
         let b = vec![1, 2, 3, 4, 5, 6, 7, 8];
 
         assert_eq!(Matrix::from_vec(a, 3).unwrap(), matrix_a);
-        assert_eq!(Matrix::from_vec(b, 3), Err(MatrixError::InvalidVecSize));
+        assert_eq!(
+            Matrix::from_vec(b, 3), Err(MatrixError::InvalidVecSizeError)
+        );
     }
 
     #[test]
@@ -740,6 +785,25 @@ mod test_matrix {
     }
 
     #[test]
+    fn test_is_invertible() {
+        let oui = Matrix::new(
+            vec![vec![1, 3], vec![7, 4]]
+        ).unwrap();
+
+        let singuliere = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]
+        ).unwrap();
+
+        let mauvaise_dimensions = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6]]
+        ).unwrap();
+
+        assert!(oui.is_invertible());
+        assert!(!singuliere.is_invertible());
+        assert!(!mauvaise_dimensions.is_invertible());
+    }
+
+    #[test]
     fn test_minor() {
         let matrix =
             Matrix::new(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]])
@@ -764,7 +828,7 @@ mod test_matrix {
 
         assert_eq!(
             too_small.minor(0, 0),
-            Err(MatrixError::MatrixTooSmall)
+            Err(MatrixError::MatrixTooSmallError)
         );
     }
 
@@ -909,12 +973,17 @@ mod test_matrix {
             vec![vec![-24, 18, 5], vec![20, -15, -4], vec![-5, 4, 1]]
         ).unwrap();
 
+        let c = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]
+        ).unwrap();
+
         let not_squared = Matrix::new(
             vec![vec![1, 2, 3], vec![4, 5, 6]]
         ).unwrap();
 
         assert_eq!(a.inverse(), Ok(a_result));
         assert_eq!(b.inverse(), Ok(b_result));
+        assert_eq!(c.inverse(), Err(MatrixError::DeterminantIsZeroError));
         assert_eq!(
             not_squared.inverse(),
             Err(MatrixError::NotSquaredMatrixError)
