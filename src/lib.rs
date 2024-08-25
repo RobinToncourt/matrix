@@ -10,9 +10,9 @@ use std::ops::{
 };
 use std::error::Error;
 use std::fmt::{Display, Debug, Formatter, Error as FmtError};
-use num::{
-    Zero,
-    One,
+use math_concept::{
+    zero::Zero,
+    one::One,
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -243,7 +243,7 @@ fn vec_option_t_to_vec_t<T>(array: Vec<Vec<Option<T>>>) -> Vec<Vec<T>> {
 
 impl<T> Matrix<T>
 where
-    T: Zero + One + Neg<Output = T> + Clone,
+    T: Zero + One + Add<Output = T> + Mul<Output = T> + Neg<Output = T> + Clone,
 {
     pub fn determinant(&self) -> Result<T, MatrixError> {
         matrix_determinant(self)
@@ -263,7 +263,7 @@ fn matrix_determinant<T>(
     matrix: &Matrix<T>,
 ) -> Result<T, MatrixError>
 where
-    T: Zero + One + Neg<Output = T> + Clone,
+    T: Zero + One + Add<Output = T> + Mul<Output = T> + Neg<Output = T> + Clone,
 {
     if !matrix.is_squared() {
         return Err(MatrixError::NotSquaredMatrixError);
@@ -590,7 +590,9 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Zero + One + Div<Output = T> + Neg<Output = T> + Clone,
+    T: Zero + One +
+        Add<Output = T> + Mul<Output = T> + Div<Output = T> +
+        Neg<Output = T> + Clone,
 {
     pub fn inverse(&self) -> Result<Self, MatrixError> {
         if !self.is_squared() {
@@ -609,7 +611,7 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Zero + One + Neg<Output = T> + Clone,
+    T: Zero + One + Add<Output = T> + Mul<Output = T> + Neg<Output = T> + Clone,
 {
     pub fn comatrice(&self) -> Result<Self, MatrixError> {
         if !self.is_squared() {
