@@ -2,13 +2,18 @@
 
 use std::ops::{
     Add,
+    Sub,
     Mul,
+    Div,
     Neg,
     Index,
 };
 use std::error::Error;
 use std::fmt::{Display, Debug, Formatter, Error as FmtError};
-use num::Num;
+use num::{
+    Zero,
+    One,
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Matrix<T> {
@@ -31,29 +36,47 @@ pub enum MatrixError {
     DeterminantIsZeroError,
 }
 
+impl MatrixError {
+    const EMPTY_MATRIX_ERROR_STR: &'static str = "Matrix is empty.";
+    const ROWS_NOT_OF_SAME_SIZE_ERROR_STR: &'static str =
+        "The rows are not of the same size";
+    const NOT_THE_SAME_SIZE_ERROR_STR: &'static str =
+        "The Matrixes have different size.";
+    const INCOMPATIBLE_SIZE_MUL_ERROR_STR: &'static str =
+        "The Matrixes are not compatible.";
+    const MATRIX_CANT_BE_ZERO_SIDED_ERROR_STR: &'static str =
+        "Matrix can't be of zero size.";
+    const NOT_SQUARED_MATRIX_ERROR_STR: &'static str = "Matrix is not squared.";
+    const MATRIX_TOO_SMALL_ERROR_STR: &'static str = "Matrix is too small.";
+    const INVALID_VEC_SIZE_ERROR_STR: &'static str = "Vec of invalid size.";
+    const NO_DECOMPOSITION_ERROR_STR: &'static str = "No decomposition lu.";
+    const DETERMINANT_IS_ZERO_ERROR_STR: &'static str = "Determinant is zero.";
+}
+
 impl Display for MatrixError {
     fn fmt(&self, f: &mut Formatter) -> Result<(), FmtError> {
         match self {
             Self::EmptyMatrixError =>
-                write!(f, "Matrix is empty."),
+                write!(f, "{}", MatrixError::EMPTY_MATRIX_ERROR_STR),
             Self::RowsNotOfSameSizeError =>
-                write!(f, "The rows are not of the same size."),
+                write!(f, "{}", MatrixError::ROWS_NOT_OF_SAME_SIZE_ERROR_STR),
             Self::NotTheSameSizeError =>
-                write!(f, "The Matrixes have different size."),
+                write!(f, "{}", MatrixError::NOT_THE_SAME_SIZE_ERROR_STR),
             Self::IncompatibleSizeMulError =>
-                write!(f, "The Matrixes are not compatible."),
+                write!(f, "{}", MatrixError::INCOMPATIBLE_SIZE_MUL_ERROR_STR),
             Self::MatrixCantBeZeroSizedError =>
-                write!(f, "Matrix can't be of zero size."),
+                write!(f, "{}",
+                    MatrixError::MATRIX_CANT_BE_ZERO_SIDED_ERROR_STR),
             Self::NotSquaredMatrixError =>
-                write!(f, "Matrix is not squared."),
+                write!(f, "{}", MatrixError::NOT_SQUARED_MATRIX_ERROR_STR),
             Self::MatrixTooSmallError =>
-                write!(f, "Matrix is too small."),
+                write!(f, "{}", MatrixError::MATRIX_TOO_SMALL_ERROR_STR),
             Self::InvalidVecSizeError =>
-                write!(f, "Vec of invalid size."),
+                write!(f, "{}", MatrixError::INVALID_VEC_SIZE_ERROR_STR),
             Self::NoDecompositionError =>
-                write!(f, "No decomposition lu."),
+                write!(f, "{}", MatrixError::NO_DECOMPOSITION_ERROR_STR),
             Self::DeterminantIsZeroError =>
-                write!(f, "Determinant is zero."),
+                write!(f, "{}", MatrixError::DETERMINANT_IS_ZERO_ERROR_STR),
         }
     }
 }
@@ -220,7 +243,7 @@ fn vec_option_t_to_vec_t<T>(array: Vec<Vec<Option<T>>>) -> Vec<Vec<T>> {
 
 impl<T> Matrix<T>
 where
-    T: Num + Neg<Output = T> + Clone,
+    T: Zero + One + Neg<Output = T> + Clone,
 {
     pub fn determinant(&self) -> Result<T, MatrixError> {
         matrix_determinant(self)
@@ -231,7 +254,7 @@ where
             false
         }
         else {
-            self.determinant().unwrap() != T::zero()
+            !self.determinant().unwrap().is_zero()
         }
     }
 }
@@ -240,7 +263,7 @@ fn matrix_determinant<T>(
     matrix: &Matrix<T>,
 ) -> Result<T, MatrixError>
 where
-    T: Num + Neg<Output = T> + Clone,
+    T: Zero + One + Neg<Output = T> + Clone,
 {
     if !matrix.is_squared() {
         return Err(MatrixError::NotSquaredMatrixError);
@@ -337,7 +360,7 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Num,
+    T: Zero + One,
 {
     pub fn identity(size: usize) -> Result<Self, MatrixError> {
         if size == 0 {
@@ -369,7 +392,12 @@ where
             grid
         })
     }
+}
 
+impl<T> Matrix<T>
+where
+    T: Zero + PartialEq,
+{
     pub fn is_diagonal(&self) -> bool {
         if !self.is_squared() {
             return false;
@@ -381,7 +409,7 @@ where
                     continue;
                 }
 
-                if self.grid[x][y] != T::zero() {
+                if !self.grid[x][y].is_zero() {
                     return false;
                 }
             }
@@ -393,26 +421,42 @@ where
 
 impl<T> Matrix<T>
 where
-    T: std::iter::Sum<T> + Clone,
+    T: Zero + Add<Output = T> + Clone,
 {
     pub fn trace(&self) -> Result<T, MatrixError> {
         if !self.is_squared() {
             return Err(MatrixError::NotSquaredMatrixError);
         }
 
-        let sum = self.get_diagonal()
-            .into_iter()
-            .map(|e| e.clone())
-            .sum::<T>();
-        Ok(sum)
+        Ok(
+            sum_vec(
+                &self.get_diagonal()
+                    .into_iter()
+                    .map(|e| e.clone())
+                    .collect()
+            )
+        )
     }
+}
+
+fn sum_vec<T>(vec: &Vec<T>) -> T
+where
+    T: Zero + Add<Output = T> + Clone,
+{
+    let mut sum = T::zero();
+
+    for val in vec {
+        sum = sum + val.clone().clone();
+    }
+
+    sum
 }
 
 impl<T> Matrix<T>
 where
     T: Add<Output = T> + Clone,
 {
-    pub fn add(&self, other: &Self) -> Result<Self, MatrixError> {
+    pub fn add_to(&self, other: &Self) -> Result<Self, MatrixError> {
         if self.rows != other.rows ||
             self.columns != other.columns {
             return Err(MatrixError::NotTheSameSizeError);
@@ -440,11 +484,22 @@ where
     }
 }
 
+impl<T> Add for Matrix<T>
+where
+    T: Add<Output = T> + Clone,
+{
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        self.add_to(&other).unwrap()
+    }
+}
+
 impl<T> Matrix<T>
 where
     T: Mul<Output = T> + Clone,
 {
-    pub fn mul_scalaire(
+    pub fn scale(
         &self, scalaire: T,
     ) -> Self {
         let mut new_grid: Vec<Vec<T>> = Vec::new();
@@ -471,9 +526,9 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Add<Output = T> + Mul<Output = T> + std::iter::Sum + Clone,
+    T: Zero + Add<Output = T> + Mul<Output = T> + Clone,
 {
-    pub fn mul(
+    pub fn mul_to(
         &self, other: &Self,
     ) -> Result<Self, MatrixError> {
         if self.columns != other.rows {
@@ -494,7 +549,7 @@ where
 
                 let mul_array = mul_array_elements(self_row, other_column);
 
-                new_column.push(mul_array.into_iter().sum::<T>());
+                new_column.push(sum_vec(&mul_array));
             }
 
             new_grid.push(new_column);
@@ -505,6 +560,17 @@ where
             columns,
             grid: new_grid,
         })
+    }
+}
+
+impl<T> Mul for Matrix<T>
+where
+    T: Zero + Add<Output = T> + Mul<Output = T> + Clone,
+{
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        self.mul_to(&other).unwrap()
     }
 }
 
@@ -524,26 +590,26 @@ where
 
 impl<T> Matrix<T>
 where
-    T: Num + Neg<Output = T> + Clone + Debug,
+    T: Zero + One + Div<Output = T> + Neg<Output = T> + Clone,
 {
     pub fn inverse(&self) -> Result<Self, MatrixError> {
         if !self.is_squared() {
             return Err(MatrixError::NotSquaredMatrixError);
         }
         let determinant = self.determinant()?;
-        if determinant == T::zero() {
+        if determinant.is_zero() {
             return Err(MatrixError::DeterminantIsZeroError);
         }
         let comatrice = self.comatrice()?;
         let transpose = comatrice.transpose();
         let inverse_determinant = T::one() / determinant;
-        Ok(transpose.mul_scalaire(inverse_determinant))
+        Ok(transpose.scale(inverse_determinant))
     }
 }
 
 impl<T> Matrix<T>
 where
-    T: Num + Neg<Output = T> + Clone,
+    T: Zero + One + Neg<Output = T> + Clone,
 {
     pub fn comatrice(&self) -> Result<Self, MatrixError> {
         if !self.is_squared() {
@@ -577,7 +643,7 @@ where
 
 fn get_sign_from_pos<T>(pos: usize) -> T
 where
-    T: Num + Neg<Output = T>,
+    T: One + Neg<Output = T>,
 {
     if pos % 2 == 1 {
         -T::one()
@@ -587,22 +653,38 @@ where
     }
 }
 
-impl<T> Matrix<T> {
-    fn lu_decomposition(
-        &self
-    ) -> Result<(Matrix<T>, Matrix<T>), MatrixError> {
-        if !self.is_squared() {
-            return Err(MatrixError::NotSquaredMatrixError);
-        }
+impl<T> Sub for Matrix<T>
+where
+    T: One + Add<Output = T> + Mul<Output = T> + Neg<Output = T> + Clone,
+{
+    type Output = Self;
 
-        let mut l: Vec<Vec<T>> = Vec::new();
-        let mut u: Vec<Vec<T>> = Vec::new();
+    fn sub(self, other: Self) -> Self {
+        self + other.scale(-T::one())
+    }
+}
 
-        todo!();
+impl<T> Matrix<T>
+where
+    T: Zero + One +
+        Add<Output = T> + Mul<Output = T> + Div<Output = T> +
+        Neg<Output = T> + Clone,
+{
+    pub fn div_to(&self, other: &Self) -> Result<Self, MatrixError> {
+        self.mul_to(&other.inverse()?)
+    }
+}
 
-        let lower = Matrix::new(l).unwrap();
-        let upper = Matrix::new(u).unwrap();
-        Ok((lower, upper))
+impl<T> Div for Matrix<T>
+where
+    T: Zero + One +
+    Add<Output = T> + Mul<Output = T> + Div<Output = T> +
+    Neg<Output = T> + Clone,
+{
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        self.div_to(&other).unwrap()
     }
 }
 
@@ -669,7 +751,7 @@ mod test_matrix {
     }
 
     #[test]
-    fn test_add() {
+    fn test_add_to() {
         let first = vec![vec![1, 1, 1], vec![1, 1, 1], vec![1, 1, 1]];
         let wrong_size = vec![vec![2, 2], vec![2, 2], vec![2, 2]];
         let second = vec![vec![2, 2, 2], vec![2, 2, 2], vec![2, 2, 2]];
@@ -681,18 +763,35 @@ mod test_matrix {
         let matrix_result = Matrix::new(result).unwrap();
 
         assert_eq!(
-            matrix_first.add(&matrix_wrong_size),
+            matrix_first.add_to(&matrix_wrong_size),
             Err(MatrixError::NotTheSameSizeError)
         );
 
         assert_eq!(
-            matrix_first.add(&matrix_second),
+            matrix_first.add_to(&matrix_second),
             Ok(matrix_result)
         );
     }
 
     #[test]
-    fn test_mul_scalaire() {
+    #[should_panic]
+    fn test_add() {
+        let first = vec![vec![1, 1, 1], vec![1, 1, 1], vec![1, 1, 1]];
+        let wrong_size = vec![vec![2, 2], vec![2, 2], vec![2, 2]];
+        let second = vec![vec![2, 2, 2], vec![2, 2, 2], vec![2, 2, 2]];
+        let result = vec![vec![3, 3, 3], vec![3, 3, 3], vec![3, 3, 3]];
+
+        let matrix_first = Matrix::new(first).unwrap();
+        let matrix_wrong_size = Matrix::new(wrong_size).unwrap();
+        let matrix_second = Matrix::new(second).unwrap();
+        let matrix_result = Matrix::new(result).unwrap();
+
+        assert_eq!(matrix_first.clone() + matrix_second, matrix_result);
+        let _ = matrix_first + matrix_wrong_size;
+    }
+
+    #[test]
+    fn test_scale() {
         let scalaire = 2;
         let grid = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
         let matrix = Matrix::new(grid).unwrap();
@@ -700,13 +799,13 @@ mod test_matrix {
         let matrix_result = Matrix::new(result).unwrap();
 
         assert_eq!(
-            matrix.mul_scalaire(scalaire),
+            matrix.scale(scalaire),
             matrix_result
         );
     }
 
     #[test]
-    fn test_mul() {
+    fn test_mul_to() {
         let a = Matrix::new(vec![vec![1, 2, 0], vec![4, 3, -1]]).unwrap();
         let b =
             Matrix::new(vec![vec![5, 1], vec![2, 3], vec![3, 4]]).unwrap();
@@ -716,9 +815,26 @@ mod test_matrix {
                 vec![vec![9, 13, -1], vec![14, 13, -3], vec![19, 18, -4]]
             ).unwrap();
 
-        assert_eq!(a.mul(&b).unwrap(), a_mul_b);
-        assert_eq!(b.mul(&a).unwrap(), b_mul_a);
-        assert_eq!(a.mul(&a), Err(MatrixError::IncompatibleSizeMulError));
+        assert_eq!(a.mul_to(&b).unwrap(), a_mul_b);
+        assert_eq!(b.mul_to(&a).unwrap(), b_mul_a);
+        assert_eq!(a.mul_to(&a), Err(MatrixError::IncompatibleSizeMulError));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_mul() {
+        let a = Matrix::new(vec![vec![1, 2, 0], vec![4, 3, -1]]).unwrap();
+        let b =
+        Matrix::new(vec![vec![5, 1], vec![2, 3], vec![3, 4]]).unwrap();
+        let a_mul_b =
+        Matrix::new(vec![vec![9, 7], vec![23, 9]]).unwrap();
+        let b_mul_a = Matrix::new(
+            vec![vec![9, 13, -1], vec![14, 13, -3], vec![19, 18, -4]]
+        ).unwrap();
+
+        assert_eq!(a.clone() * b.clone(), a_mul_b);
+        assert_eq!(b * a.clone(), b_mul_a);
+        let _ = a.clone() * a;
     }
 
     #[test]
@@ -769,19 +885,23 @@ mod test_matrix {
 
     #[test]
     fn test_is_diagonal() {
-        let non_square =
-            Matrix::new(vec![vec![1, 2, 3], vec![4, 5, 6]])
-            .unwrap();
-        let square_not_diagonal =
-            Matrix::new(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]])
-            .unwrap();
-        let diagonal =
-            Matrix::new(vec![vec![1, 0, 0], vec![0, 5, 0], vec![0, 0, 9]])
-            .unwrap();
+        let non_square = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6]]
+        ).unwrap();
+        let square_not_diagonal = Matrix::new(
+            vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]
+        ).unwrap();
+        let diagonal_1 = Matrix::new(
+            vec![vec![1, 0, 0], vec![0, 5, 0], vec![0, 0, 9]]
+        ).unwrap();
+        let diagonal_2 = Matrix::new(
+            vec![vec![1, 0, 0], vec![0, 1, 0], vec![0, 0, 1]]
+        ).unwrap();
 
         assert!(!non_square.is_diagonal());
         assert!(!square_not_diagonal.is_diagonal());
-        assert!(diagonal.is_diagonal());
+        assert!(diagonal_1.is_diagonal());
+        assert!(diagonal_2.is_diagonal());
     }
 
     #[test]
@@ -1008,6 +1128,162 @@ mod test_matrix {
         );
         assert_eq!(a.trace(), Ok(5));
         assert_eq!(b.trace(), Ok(15))
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: NotTheSameSizeError")]
+    fn test_sub() {
+        let a = Matrix::new(
+            vec![
+                vec![ 0,  4],
+                vec![-3, -3],
+            ]
+        ).unwrap();
+        let b = Matrix::new(
+            vec![
+                vec![-9,  0],
+                vec![ 2, -2],
+            ]
+        ).unwrap();
+        let a_minux_b = Matrix::new(
+            vec![
+                vec![ 9,  4],
+                vec![-5, -1],
+            ]
+        ).unwrap();
+        let c = Matrix::new(
+            vec![
+                vec![ 0,  4],
+                vec![-3, -3],
+                vec![ 1,  2],
+            ]
+        ).unwrap();
+
+        assert_eq!(a.clone() - b, a_minux_b);
+        let _ = a - c;
+    }
+
+    #[test]
+    fn test_div_to() {
+        let a = Matrix::new(
+            vec![
+                vec![3., -2.],
+                vec![4., -3.],
+            ]
+        ).unwrap();
+        let b = Matrix::new(
+            vec![
+                vec![6., -10.],
+                vec![1., -2.],
+            ]
+        ).unwrap();
+        let a_div_b = Matrix::new(
+            vec![
+                vec![2., -9.],
+                vec![2.5, -11.],
+            ]
+        ).unwrap();
+
+        let zero_deter = Matrix::new(
+            vec![vec![1., 2., 3.], vec![4., 5., 6.], vec![7., 8., 9.]]
+        ).unwrap();
+
+        let not_squared = Matrix::new(
+            vec![vec![1., 2., 3.], vec![4., 5., 6.]]
+        ).unwrap();
+
+        let moins_trois_cent_six = Matrix::new(
+            vec![vec![6., 1., 1.], vec![4., -2., 5.], vec![2., 8., 7.]]
+        ).unwrap();
+
+        assert_eq!(
+            a.clone().div_to(&zero_deter),
+            Err(MatrixError::DeterminantIsZeroError)
+        );
+        assert_eq!(
+            a.clone().div_to(&not_squared),
+            Err(MatrixError::NotSquaredMatrixError)
+        );
+        assert_eq!(
+            b.clone().div_to(&moins_trois_cent_six),
+            Err(MatrixError::IncompatibleSizeMulError)
+        );
+        assert_eq!(a.div_to(&b), Ok(a_div_b));
+    }
+
+    #[test]
+    fn test_div() {
+        let a = Matrix::new(
+            vec![
+                vec![3., -2.],
+                vec![4., -3.],
+            ]
+        ).unwrap();
+        let b = Matrix::new(
+            vec![
+                vec![6., -10.],
+                vec![1., -2.],
+            ]
+        ).unwrap();
+
+        let a_div_b = Matrix::new(
+            vec![
+                vec![2., -9.],
+                vec![2.5, -11.],
+            ]
+        ).unwrap();
+
+        assert_eq!(a / b, a_div_b);
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: DeterminantIsZeroError")]
+    fn test_div_zero_deter() {
+        let a = Matrix::new(
+            vec![
+                vec![3., -2.],
+                vec![4., -3.],
+            ]
+        ).unwrap();
+
+        let zero_deter = Matrix::new(
+            vec![vec![1., 2., 3.], vec![4., 5., 6.], vec![7., 8., 9.]]
+        ).unwrap();
+
+        let _ = a / zero_deter;
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: NotSquaredMatrixError")]
+    fn test_div_not_squared() {
+        let a = Matrix::new(
+            vec![
+                vec![3., -2.],
+                vec![4., -3.],
+            ]
+        ).unwrap();
+        let not_squared = Matrix::new(
+            vec![vec![1., 2., 3.], vec![4., 5., 6.]]
+        ).unwrap();
+
+        let _ = a / not_squared;
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value: IncompatibleSizeMulError")]
+    fn test_div_imcompatible_size() {
+        let a = Matrix::new(
+            vec![
+                vec![3., -2.],
+                vec![4., -3.],
+            ]
+        ).unwrap();
+
+        let wrong_size = Matrix::new(
+            vec![vec![6., 1., 1.], vec![4., -2., 5.], vec![2., 8., 7.]]
+        ).unwrap();
+
+        let _ = a / wrong_size;
     }
 }
 
