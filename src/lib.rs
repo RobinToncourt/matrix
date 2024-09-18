@@ -83,7 +83,7 @@ impl Error for MatrixError {}
 
 impl<T> Matrix<T> {
     pub fn new(grid: Vec<Vec<T>>) -> Result<Self, MatrixError> {
-        if grid.len() == 0 {
+        if grid.is_empty() {
             return Err(MatrixError::EmptyMatrixError);
         }
 
@@ -140,7 +140,7 @@ impl<T> Matrix<T> {
             None
         }
         else {
-            Some(self.grid[index].iter().map(|e| e).collect::<Vec<&T>>())
+            Some(self.grid[index].iter().collect::<Vec<&T>>())
         }
     }
 
@@ -201,7 +201,7 @@ impl<T> Iterator for MatrixIterator<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.matrix_values.len() == 0 {
+        if self.matrix_values.is_empty() {
             return None;
         }
 
@@ -209,15 +209,15 @@ impl<T> Iterator for MatrixIterator<T> {
     }
 }
 
-fn are_rows_same_size<T>(arrays: &Vec<Vec<T>>) -> bool {
+fn are_rows_same_size<T>(arrays: &[Vec<T>]) -> bool {
     if arrays.len() == 1 {
         return true;
     }
 
     let first_array_len: usize = arrays[0].len();
 
-    for i in 1..arrays.len() {
-        if first_array_len != arrays[i].len() {
+    for row in arrays.iter().skip(1) {
+        if first_array_len != row.len() {
             return false;
         }
     }
@@ -336,9 +336,9 @@ where
 
         let mut tmp_grid: Vec<Vec<Option<T>>> = vec![vec![None; columns]; rows];
 
-        for i in 0..rows {
-            for j in 0..columns {
-                tmp_grid[i][j] = Some(self.grid[j][i].clone());
+        for (i, row) in tmp_grid.iter_mut().enumerate().take(rows) {
+            for (j, cell) in row.iter_mut().enumerate().take(columns) {
+                *cell = Some(self.grid[j][i].clone());
             }
         }
 
@@ -430,7 +430,7 @@ where
             sum_vec(
                 &self.get_diagonal()
                     .into_iter()
-                    .map(|e| e.clone())
+                    .cloned()
                     .collect()
             )
         )
